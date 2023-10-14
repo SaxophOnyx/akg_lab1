@@ -17,9 +17,9 @@ namespace GraphicsLabSFML
         private static float _angleY = 0;
         private static float _angleZ = 0;
         private static Vector3 _cameraPos = new(0, 0, 0);
-        private static Vector3 _modelPos = new(0, 0, -10);
+        private static Vector3 _modelPos = new(0, 0, 20);
 
-        private static float _scale = 1;
+        private static float _scale = 5;
         private static Vector3 _position = new(0);
 
         private static Matrix4x4 viewportM;
@@ -59,21 +59,27 @@ namespace GraphicsLabSFML
 
         private static Matrix4x4 createViewMatrix(Vector3 eye, Vector3 target, Vector3 up)
         {
-            Vector3 zAxis = Vector3.Normalize(eye - target);
-            Vector3 xAxis = Vector3.Normalize(Vector3.Cross(up, zAxis));
-            Vector3 yAxis = up;
+        //    Vector3 zAxis = Vector3.Normalize(eye - target);
+        //    Vector3 xAxis = Vector3.Normalize(Vector3.Cross(up, zAxis));
+        //    Vector3 yAxis = up;
+
+            Vector3 zAxis1 = eye - target;
+            Vector3 xAxis1 = Vector3.Cross(up, zAxis1);
+            Vector3 yAxis1 = Vector3.Cross(zAxis1, xAxis1);
+
+            Vector3 zAxis = Vector3.Normalize(zAxis1);
+            Vector3 xAxis = Vector3.Normalize(xAxis1);
+            Vector3 yAxis = Vector3.Normalize(yAxis1);
 
             return new Matrix4x4(
               xAxis.X, xAxis.Y, xAxis.Z, -Vector3.Dot(xAxis, eye),
               yAxis.X, yAxis.Y, yAxis.Z, -Vector3.Dot(yAxis, eye),
               zAxis.X, zAxis.Y, zAxis.Z, -Vector3.Dot(zAxis, eye),
               0, 0, 0, 1
-            );
+            );  
         }
 
         private static Matrix4x4 createProjectionMatrix(float znear, float zfar) {
-            var a = 2 * 10 / 1000;
-            var b = 2 * 10f / 1000;
             return new Matrix4x4(
                 2f / width, 0, 0, 0,
                 0, 2f / height, 0, 0,
@@ -89,17 +95,17 @@ namespace GraphicsLabSFML
 
             Matrix4x4 scale = Matrix4x4.CreateScale(_scale);
             // Matrix4x4 offset = Matrix4x4.CreateTranslation(width / 2, height / 2, 0);
-            Matrix4x4 offset = Matrix4x4.CreateTranslation(new Vector3(width / 2,  height / 2, 10));
+            Matrix4x4 offset = Matrix4x4.CreateTranslation(new Vector3(width / 2,  height / 2, 0));
             Matrix4x4 offset2 = Matrix4x4.CreateTranslation(_position);
             Matrix4x4 rotateX = Matrix4x4.CreateRotationX(Utils.DegreesToRadians(_angleX));
             Matrix4x4 rotateY = Matrix4x4.CreateRotationY(Utils.DegreesToRadians(_angleY));
             Matrix4x4 rotateZ = Matrix4x4.CreateRotationZ(Utils.DegreesToRadians(_angleZ));
 
             //same one
-            Matrix4x4 camera = Matrix4x4.CreateLookAt(_cameraPos, _modelPos, new Vector3(0, 1, 0));
+            Matrix4x4 camera = Matrix4x4.CreateLookAt(_cameraPos, _modelPos, new Vector3(0, 10, 0));
 
             Matrix4x4 projection = 
-                createProjectionMatrix(0.01f, 1);
+                createProjectionMatrix(0.1f, 1f);
 
                 //not works;
                 //Matrix4x4.CreatePerspective(width, height, 0.01f, 1f);
@@ -107,12 +113,18 @@ namespace GraphicsLabSFML
 
             Vector3 eye = _cameraPos;
             Vector3 target = _modelPos;       
-            Vector3 up = new(0, 1, 0);
+            Vector3 up = new(0, 10, 0);
 
             viewportM = Matrix4x4.Transpose(screen);
             projectionM = Matrix4x4.Transpose(projection);
             viewM = Matrix4x4.Transpose(createViewMatrix(eye, target, up));
-            modelM = scale * rotateZ * rotateY * rotateX * offset * offset2;
+            modelM = 
+                scale * 
+                rotateZ * 
+                rotateY * 
+                rotateX * 
+                offset * 
+                offset2;
 
             Matrix4x4 res =
                 viewportM *
@@ -125,8 +137,7 @@ namespace GraphicsLabSFML
     
         private static IEnumerable<Vector4> TransformVertices(IEnumerable<Vector4> vertices, Matrix4x4 matrix)
         {
-            var a = vertices.Select(v => Vector4.Transform(v, matrix));//.Select(v => v / v.W);
-           // var a = vertices.Select(v => v / v.W);
+            var a = vertices.Select(v => Vector4.Transform(v, matrix));
             return a;
         }
 
@@ -141,38 +152,33 @@ namespace GraphicsLabSFML
                 // Model rotation
                 case Keyboard.Key.W:
                 {
-                        // _angleX += rotateDelta;
-                        _cameraPos.X += rotateDelta;
-                        break;
+                    _angleY += rotateDelta;
+                    break;
                 }
                 case Keyboard.Key.S:
                 {
-                 //   _angleX -= rotateDelta;
-                        _cameraPos.Y -= rotateDelta;
-                        break;
+                    _angleY -= rotateDelta;
+                    break;
                 }
                 case Keyboard.Key.A:
                 {
-                        // _angleY -= rotateDelta;
-                        _cameraPos.X -= rotateDelta;
+                    _angleX -= rotateDelta;
                     break;
                 }
                 case Keyboard.Key.D:
                 {
-                  //  _angleY += rotateDelta;
-                        _cameraPos.X += rotateDelta;
-                        break;
+                    _angleX += rotateDelta;
+                    break;
                 }
                 case Keyboard.Key.E:
                 {
-                  //  _angleZ += rotateDelta;
-                        _cameraPos.Z += rotateDelta;
+                          _angleZ += rotateDelta;
+                        //_cameraPos.Y += movementDelta;
                         break;
                 }
                 case Keyboard.Key.Q:
                 {
-                    //_angleZ -= rotateDelta;
-                        _cameraPos.Z -= rotateDelta;
+                        _angleZ -= rotateDelta;
                         break;
                 }
                 case Keyboard.Key.Equal:
@@ -191,22 +197,24 @@ namespace GraphicsLabSFML
                 // Model movement
                 case Keyboard.Key.Up:
                 {
-                    _position.Y += movementDelta;
+                    _modelPos.Y += movementDelta / 10;
                     break;
                 }
                 case Keyboard.Key.Down:
                 {
-                    _position.Y -= movementDelta;
+                    _modelPos.Y -= movementDelta / 10;
                     break;
                 }
                 case Keyboard.Key.Left:
                 {
-                    _position.X -= movementDelta;
-                    break;
+                        // _position.X -= movementDelta;
+                        _modelPos.X -= movementDelta / 10;
+                        break;
                 }
                 case Keyboard.Key.Right:
                 {
-                        _position.X += movementDelta;
+                       // _position.X += movementDelta;
+                        _modelPos.X += movementDelta / 10;
                   //  _modelPos.X += movementDelta;
                     break;
                 }
