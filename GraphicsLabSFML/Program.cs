@@ -14,10 +14,12 @@ namespace GraphicsLabSFML
         private static float _angleX = 0;
         private static float _angleY = 0;
         private static float _angleZ = 0;
-        private static Vector3 _cameraPos = new(-250, -250, -1250);
-        private static Vector3 _modelPos = new(width / 2, height / 2, 0);
+        private static Vector3 _cameraPos = new(0, 0, -20);
+        private static Vector3 _cameraTarget = new(0, 0, 0);
+        private static Vector3 _modelPos = new(0, 0, 20);
 
         private static float _scale = 1;
+        private static Vector3 _position = new(0);
 
         static void Main()
         {
@@ -28,7 +30,7 @@ namespace GraphicsLabSFML
             Model model = parser.Parse(source);
             IEnumerable<Vector4> vertices = model.Faces.SelectMany(f => f.Vertices);
 
-           Stopwatch stopwatch = new();
+            Stopwatch stopwatch = new();
 
             CustomWindow window = new(width, height);
             window.KeyPressed += OnKeyPressed;
@@ -42,52 +44,107 @@ namespace GraphicsLabSFML
                 Matrix4x4 matrix = CreateResultMatrix(width, height);
                 IEnumerable<Vector4> transformed = TransformVertices(vertices, matrix);
 
+                // IEnumerable<Vector4> transformed = Process(vertices);
                 window.RenderFrame(transformed);
 
                 stopwatch.Stop();
-                Console.WriteLine($"Elapsed = ${stopwatch.ElapsedMilliseconds}ms");
+                // Console.WriteLine($"Elapsed = ${stopwatch.ElapsedMilliseconds}ms");
             }
         }
 
         private static Matrix4x4 CreateResultMatrix(uint width, uint height)
         {
+            Vector3 centerScreenVector = new(width / 2, height / 2, 0);
+
             // для вращения используется порядок вращения Эйлера
 
             Matrix4x4 scale = Matrix4x4.CreateScale(_scale);
-            // Matrix4x4 offset = Matrix4x4.CreateTranslation(width / 2, height / 2, 0);
-            Matrix4x4 offset = Matrix4x4.CreateTranslation(_modelPos);
+            Matrix4x4 offset = Matrix4x4.CreateTranslation(_position + centerScreenVector);
             Matrix4x4 rotateX = Matrix4x4.CreateRotationX(Utils.DegreesToRadians(_angleX));
             Matrix4x4 rotateY = Matrix4x4.CreateRotationY(Utils.DegreesToRadians(_angleY));
             Matrix4x4 rotateZ = Matrix4x4.CreateRotationZ(Utils.DegreesToRadians(_angleZ));
 
-            Matrix4x4 camera = Matrix4x4.CreateLookAt(_cameraPos, new Vector3(), Vector3.UnitY);
-            Matrix4x4 projection = Matrix4x4.CreatePerspective(width, height, 0.1f, 1000.0f);
-            Matrix4x4 screen = Matrix4x4Factories.CreateScreen(1280, 720);
+            Matrix4x4 projection = Matrix4x4Factories.CreateProjection(width, height, 0.1f, 100f);
+            Matrix4x4 screen = Matrix4x4Factories.CreateViewport(width, height);
 
-            // Matrix4x4 res = scale * rotateZ * rotateY * rotateX * offset * projection;
-            // Matrix4x4 res = screen * projection * scale * rotateZ * rotateY * rotateX * offset;
-            Matrix4x4 res = scale;
+            Vector3 up = new(0, 1, 0);
 
-            return res;
+            viewportM = screen;
+            projectionM = projection;
+            viewM = Matrix4x4Factories.CreateView(_cameraPos, _cameraTarget, up);
+            // modelM = scale * rotateZ * rotateY * rotateX * offset;
+            modelM = scale;
+
+            /*
+            modelM =
+                scale *
+                rotateZ *
+                rotateY *
+                rotateX *
+                offset *
+                offset2;
+             */
+
+            // Matrix4x4 res = viewportM * projectionM * viewM * modelM;
+            Matrix4x4 res = projectionM * viewM * modelM;
+            return Matrix4x4.Transpose(res);
         }
-    
+
+        private static IEnumerable<Vector4> Process(IEnumerable<Vector4> vertices)
+        {
+            Vector3 centerScreenVector = new(width / 2, height / 2, 0);
+
+            // для вращения используется порядок вращения Эйлера
+
+            Matrix4x4 scale = Matrix4x4.CreateScale(_scale);
+            Matrix4x4 offset = Matrix4x4.CreateTranslation(_position + centerScreenVector);
+            Matrix4x4 rotateX = Matrix4x4.CreateRotationX(Utils.DegreesToRadians(_angleX));
+            Matrix4x4 rotateY = Matrix4x4.CreateRotationY(Utils.DegreesToRadians(_angleY));
+            Matrix4x4 rotateZ = Matrix4x4.CreateRotationZ(Utils.DegreesToRadians(_angleZ));
+
+            Matrix4x4 projection = Matrix4x4Factories.CreateProjection(width, height, 0.1f, 1f);
+            var ppp = Matrix4x4.CreatePerspective(width, height, 0.1f, 1f);
+            Matrix4x4 screen = Matrix4x4Factories.CreateViewport(width, height);
+
+            Vector3 up = new(0, 10, 0);
+
+            viewportM = Matrix4x4.Transpose(screen);
+            projectionM = Matrix4x4.Transpose(projection);
+            viewM = Matrix4x4.Transpose(Matrix4x4Factories.CreateView(_cameraPos, _cameraTarget, up));
+            var lll = Matrix4x4.CreateLookAt(_cameraPos, _cameraTarget, up);
+            modelM = scale * rotateZ * rotateY * rotateX * offset;
+
+            Matrix4x4 res = viewportM * projectionM * viewM * modelM;
+
+            IEnumerable<Vector4> a = vertices.Select(v => Vector4.Transform(v, viewportM));
+            IEnumerable<Vector4> b = a.Select(v => Vector4.Transform(v, projectionM));
+            IEnumerable<Vector4> c  = b.Select(v => v /= v.W);
+            IEnumerable<Vector4> d = c.Select(v => Vector4.Transform(v, viewM)); 
+            IEnumerable<Vector4> e = d.Select(v => Vector4.Transform(v, modelM));
+
+            return e;
+        }
+
         private static IEnumerable<Vector4> TransformVertices(IEnumerable<Vector4> vertices, Matrix4x4 matrix)
         {
-            var a = vertices.Select(v => Vector4.Transform(v, matrix)).Select(v => v / v.W);
-            return a;
+            var a = vertices.Select(v =>
+            {
+                Vector4 tmp = Vector4.Transform(v, matrix);
+                tmp /= tmp.W;
 
-            var v1 = vertices.Select(v => Vector4.Transform(v, matrix));
-            var v2 = v1.Select(v => v / v.W);
-            var v3 = v2.Where(v => (v.X > 0 && v.X < 1) && (v.Y > 0 && v.Y < 1));
-            
-            return v3;
+                return tmp;
+            });
+
+            var viewport = Matrix4x4.Transpose(Matrix4x4Factories.CreateViewport(1280, 720));
+            var b = a.Select(v => Vector4.Transform(v, viewport));
+
+            return b;
         }
 
         private static void OnKeyPressed(object? sender, KeyEventArgs e)
         {
             float rotateDelta = 1.5f;
-            float scaleDelta = 0.5f;
-            float movementDelta = 20.0f;
+            float movementDelta = 120.0f;
 
             switch (e.Code)
             {
@@ -122,50 +179,55 @@ namespace GraphicsLabSFML
                     _angleZ -= rotateDelta;
                     break;
                 }
+
+                // Model scale
                 case Keyboard.Key.Equal:
                 {
-                    _scale += scaleDelta;
+                    _scale *= 1.5f;
                     break;
                 }
                 case Keyboard.Key.Hyphen:
                 {
-                    if (_scale > 1)
-                    {
-                        _scale -= scaleDelta;
-                    }
+                    _scale *= 0.7f;
 
                     break;
                 }
 
-                // Model movement
+                // Camera movement
                 case Keyboard.Key.Up:
                 {
-                    _modelPos.Z += movementDelta;
+                    _cameraPos.Y += movementDelta / 10;
+                    _cameraTarget.Y += movementDelta / 10;
                     break;
                 }
                 case Keyboard.Key.Down:
                 {
-                    _modelPos.Z -= movementDelta;
+                    _cameraPos.Y -= movementDelta / 10;
+                    _cameraTarget.Y -= movementDelta / 10;
                     break;
                 }
                 case Keyboard.Key.Left:
                 {
-                    _modelPos.X -= movementDelta;
+                    _cameraPos.X -= movementDelta / 10;
+                    _cameraTarget.X -= movementDelta / 10;
                     break;
                 }
                 case Keyboard.Key.Right:
                 {
-                    _modelPos.X += movementDelta;
+                    _cameraPos.X += movementDelta / 10;
+                    _cameraTarget.X += movementDelta / 10;
                     break;
                 }
                 case Keyboard.Key.Space:
                 {
-                    _modelPos.Y -= movementDelta;
+                    _cameraPos.Z -= movementDelta / 10;
+                    _cameraTarget.Z -= movementDelta / 10;
                     break;
                 }
                 case Keyboard.Key.Z:
                 {
-                    _modelPos.Y += movementDelta;
+                    _cameraPos.Z += movementDelta / 10;
+                    _cameraTarget.Z += movementDelta / 10;
                     break;
                 }
             }
