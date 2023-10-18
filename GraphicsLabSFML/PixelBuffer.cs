@@ -6,20 +6,20 @@ namespace GraphicsLabSFML
     {
         private const int BYTES_PER_PIXEL = 4;
         
-        private readonly uint _width;
-        private readonly uint _height;
+        private readonly int _width;
+        private readonly int _height;
         private readonly byte[] _bytes;
         private readonly byte[] _empty;
 
 
         public byte[] Bytes => _bytes;
 
-        public uint Width => _width;
+        public int Width => _width;
 
-        public uint Height => _height;
+        public int Height => _height;
 
 
-        public PixelBuffer(uint width, uint height)
+        public PixelBuffer(int width, int height)
         {
             _width = width;
             _height = height;
@@ -28,9 +28,9 @@ namespace GraphicsLabSFML
         }
 
 
-        public void SetPixel(uint x, uint y, Color color)
+        public void SetPixel(int x, int y, Color color)
         {
-            uint i = (y * _width + x) * BYTES_PER_PIXEL;
+            int i = (y * _width + x) * BYTES_PER_PIXEL;
 
             _bytes[i] = color.R;
             _bytes[i + 1] = color.G;

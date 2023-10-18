@@ -49,23 +49,6 @@ namespace GraphicsLabSFML
             };
 
             return a * b;
-
-            /*
-            Vector3 zAxis1 = eye - target;
-            Vector3 xAxis1 = Vector3.Cross(up, zAxis1);
-            Vector3 yAxis1 = Vector3.Cross(zAxis1, xAxis1);
-
-            Vector3 zAxis = Vector3.Normalize(zAxis1);
-            Vector3 xAxis = Vector3.Normalize(xAxis1);
-            Vector3 yAxis = Vector3.Normalize(yAxis1);
-
-            return new Matrix4x4(
-              xAxis.X, xAxis.Y, xAxis.Z, -Vector3.Dot(xAxis, eye),
-              yAxis.X, yAxis.Y, yAxis.Z, -Vector3.Dot(yAxis, eye),
-              zAxis.X, zAxis.Y, zAxis.Z, -Vector3.Dot(zAxis, eye),
-              0, 0, 0, 1
-            );
-            */
         }
 
         public static Matrix4x4 CreateProjection(uint width, uint height, float znear, float zfar)
@@ -76,7 +59,7 @@ namespace GraphicsLabSFML
             float tag = (float)Math.Tan(fov / 2);
             float rDist = 1f / (zfar - znear);
 
-            Matrix4x4 m = new Matrix4x4()
+            Matrix4x4 m = new()
             {
                 M11 = 1 / (aspect * tag),
                 M22 = 1 / (tag),
@@ -86,27 +69,6 @@ namespace GraphicsLabSFML
             };
 
             return m;
-
-
-            /*
-            var m1 = new Matrix4x4
-            (
-                2f / width, 0, 0, 0,
-                0, 2f / height, 0, 0,
-                0, 0, 1 / (znear - zfar), znear / (znear - zfar),
-                0, 0, 0, 1
-            );
-
-            var m2 = new Matrix4x4
-            (
-                2f * znear / width, 0, 0, 0,
-                0, 2f * znear / height, 0, 0,
-                0, 0, zfar / (znear - zfar), znear * zfar / (znear - zfar),
-                0, 0, -1f, 0
-            );
-
-            return m2;
-            */
         }
     }
 }
