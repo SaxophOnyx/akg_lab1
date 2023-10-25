@@ -8,11 +8,7 @@ namespace GraphicsLabSFML.Parsing
     {
         public Model Parse(IEnumerable<string> source)
         {
-            var faces = new List<Face>();
-
-            var vertices = new List<Vector4>();
-            var textureVectices = new List<Vector3>();
-            var normalVertices = new List<Vector3>();
+            ModelBuilder builder = new();
 
             foreach (var rawLine in source)
             {
@@ -32,7 +28,7 @@ namespace GraphicsLabSFML.Parsing
                                 ? float.Parse(items[4], CultureInfo.InvariantCulture)
                                 : 1;
 
-                            vertices.Add(new Vector4(x, y, z, w));
+                            builder.AddVertex(new Vector4(x, y, z, w));
                             break;
                         }
 
@@ -46,7 +42,7 @@ namespace GraphicsLabSFML.Parsing
                                 ? float.Parse(items[3], CultureInfo.InvariantCulture)
                                 : 0;
 
-                            textureVectices.Add(new Vector3(u, v, w));
+                            // TODO(SaxophOnyx): Add texture vertex to builder
                             break;
                         }
 
@@ -56,22 +52,23 @@ namespace GraphicsLabSFML.Parsing
                             float y = float.Parse(items[2], CultureInfo.InvariantCulture);
                             float z = float.Parse(items[3], CultureInfo.InvariantCulture);
 
-                            normalVertices.Add(new Vector3(x, y, z));
+                            // TODO(SaxophOnyx): Add mormal vertex to builder
                             break;
                         }
 
                         case "f":
                         {
-                            var face = new Face();
+                            List<int> indices = new();
 
                             foreach (var item in items.Skip(1))
                             {
                                 var verticesSet = item.Split('/');
                                 var vertexIndex = int.Parse(verticesSet[0]) - 1;
-                                face.Vertices.Add(vertices[vertexIndex]);
+                                indices.Add(vertexIndex);
                             }
 
-                            faces.Add(face);
+                            builder.AddFace(new(indices));
+
                             break;
                         }
 
@@ -81,7 +78,7 @@ namespace GraphicsLabSFML.Parsing
                 }
             }
 
-            return new Model(faces);
+            return builder.Build();
         }
     }
 }
