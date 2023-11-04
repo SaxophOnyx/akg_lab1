@@ -20,6 +20,7 @@ namespace GraphicsLabSFML.Render.Window
 
         private readonly RenderWindow _window;
         private readonly Canvas _canvas;
+        private readonly ZBuffer _zBuffer;
 
 
         public uint Width => _window.Size.X;
@@ -36,6 +37,7 @@ namespace GraphicsLabSFML.Render.Window
             _inputHandler = inputHandler;
 
             _canvas = new(_options.Width, _options.Height);
+            _zBuffer = new(_options.Width, _options.Height);
 
             InitGUI();
 
@@ -62,51 +64,99 @@ namespace GraphicsLabSFML.Render.Window
         {
             _window.Clear();
             _canvas.ClearPixels();
+            _zBuffer.Clear();
         }
 
         private void RenderModelCanvas()
         {
-            Vector4[] v = _data.Vertices;
-            int[] flatFaces = _data.FlatFaces;
-            int vPerFace = _data.VerticesPerFace;
+            CVector4[] v = _data.Vertices;
+            int[] ff = _data.FlatFaces;
 
             _canvas.ClearPixels();
 
-            Parallel.For(0, (flatFaces.Length - 1) / vPerFace, (i) =>
+            for (int i = 0; i < (ff.Length - 1) / 3; ++i)
             {
-                int off = i * vPerFace;
+                int j = i * 3;
+                CVector4 a = v[ff[j]];
+                CVector4 b = v[ff[j + 1]];
+                CVector4 c = v[ff[j + 2]];
 
-                for (int j = 0; j < vPerFace - 1; ++j)
+                if (a.IsVisible && b.IsVisible && c.IsVisible)
                 {
-                    DrawLineDDA(v[flatFaces[off + j]], v[flatFaces[off + j + 1]]);
+                    RenderFaceBarocentric(a.Value, b.Value, c.Value);
                 }
-                
-                DrawLineDDA(v[flatFaces[off + vPerFace - 1]], v[flatFaces[off + 0]]);
-            });
+            }
 
             _window.Draw(_canvas);
         }
 
+        private void RenderFace(Vector4 a, Vector4 b, Vector4 c)
+        {
+            DrawLineDDA(a, b);
+            DrawLineDDA(b, c);
+            DrawLineDDA(c, a);
+        }
+
+        private void RenderFaceBarocentric(Vector4 a, Vector4 b, Vector4 c)
+        {
+            Vector2i tl; // top left
+            Vector2i br; // bottom right
+
+            tl.X = (int)Math.Ceiling(Utils.Min(a.X, b.X, c.X));
+            tl.Y = (int)Math.Ceiling(Utils.Min(a.Y, b.Y, c.Y));
+
+            br.X = (int)Math.Ceiling(Utils.Max(a.X, b.X, c.X));
+            br.Y = (int)Math.Ceiling(Utils.Max(a.Y, b.Y, c.Y));
+
+            for (int i = tl.X; i < br.X; ++i)
+            {
+                for (int j = tl.Y; j < br.Y; ++j)
+                {
+                    if (IsInsideTriangle(a, b, c, i, j))
+                    {
+                        float z = GetBarocentricZ(a, b, c, i, j);
+                        float currZ = _zBuffer[i, j];
+
+                        if (z < currZ)
+                        {
+                            _zBuffer[i, j] = z;
+                            _canvas.SetPixel(i, j, _options.RenderColor);
+                        }
+                    }
+                }
+            }
+        }
+
+        private static bool IsInsideTriangle(Vector4 a, Vector4 b, Vector4 c, int x, int y)
+        {
+            Vector4 p = new(x, y, 0, 0);
+
+            float d1 = Sign(p, a, b);
+            float d2 = Sign(p, b, c);
+            float d3 = Sign(p, c, a);
+
+            bool hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+            bool hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+
+            return !(hasNeg && hasPos);
+        }
+
+        private static float GetBarocentricZ(Vector4 a, Vector4 b, Vector4 c, int x, int y)
+        {
+            float denominator = (b.Y - c.Y) * (a.X - c.X) + (c.X - b.X) * (a.Y - c.Y);
+            float coordinate1 = ((b.Y - c.Y) * (x - c.X) + (c.X - b.X) * (y - c.Y)) / denominator;
+            float coordinate2 = ((c.Y - a.Y) * (x - c.X) + (a.X - c.X) * (y - c.Y)) / denominator;
+
+            return 1 - coordinate1 - coordinate2;
+        }
+
+        private static float Sign(Vector4 p1, Vector4 p2, Vector4 p3)
+        {
+            return (p1.X - p3.X) * (p2.Y - p3.Y) - (p2.X - p3.X) * (p1.Y - p3.Y);
+        }
+
         private void DrawLineDDA(Vector4 a, Vector4 b)
         {
-            const int l = -1;
-            const int h = 1;
-
-            if (a.Z < l || a.Z > h || b.Z < l || b.Z > h)
-            {
-                return;
-            }
-
-            if (a.X <= 5 || a.X >= _canvas.Width - 5 || a.Y <= 5 || a.Y >= _canvas.Height - 5)
-            {
-                return;
-            }
-
-            if (b.X <= 5 || b.X >= _canvas.Width - 5 || b.Y <= 5 || b.Y >= _canvas.Height - 5)
-            {
-                return;
-            }
-
             float dx = b.X - a.X;
             float dy = b.Y - a.Y;
 

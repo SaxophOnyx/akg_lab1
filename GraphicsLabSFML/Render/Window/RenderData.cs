@@ -12,7 +12,7 @@ namespace GraphicsLabSFML.Render.Window
 
         public float Scale { get; set; } = 1;
 
-        public Vector4[] Vertices { get; set; } = Array.Empty<Vector4>();
+        public CVector4[] Vertices { get; set; } = Array.Empty<CVector4>();
 
         public int[] FlatFaces { get; set; } = Array.Empty<int>();
 

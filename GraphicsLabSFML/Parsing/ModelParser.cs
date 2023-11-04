@@ -9,7 +9,19 @@ namespace GraphicsLabSFML.Parsing
         public Model Parse(IEnumerable<string> source)
         {
             ModelBuilder builder = new();
+            ParseToBuilder(source, builder);
+            return builder.Build();
+        }
 
+        public TriangulatedModel ParseTriangulated(IEnumerable<string> source)
+        {
+            ModelBuilder builder = new();
+            ParseToBuilder(source, builder);
+            return builder.BuildTriangulated();
+        }
+
+        private static void ParseToBuilder(IEnumerable<string> source, ModelBuilder builder)
+        {
             foreach (var rawLine in source)
             {
                 string line = rawLine.Trim();
@@ -73,12 +85,10 @@ namespace GraphicsLabSFML.Parsing
                         }
 
                         default:
-                        continue;
+                            continue;
                     }
                 }
             }
-
-            return builder.Build();
         }
     }
 }

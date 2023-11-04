@@ -1,5 +1,6 @@
 ﻿using GraphicsLabSFML.Models;
 using GraphicsLabSFML.Parsing;
+using GraphicsLabSFML.Render;
 using GraphicsLabSFML.Render.Window;
 using GraphicsLabSFML.Render.Window.Input;
 using System.Collections.Concurrent;
@@ -15,6 +16,7 @@ namespace GraphicsLabSFML
 
         private static RenderData _data;
         private static Matrix4x4 _viewport = Matrix4x4.Transpose(Matrix4x4Factories.CreateViewport(width, height));
+        private static OrderablePartitioner<Tuple<int, int>> _partitioner;
 
         static void Main()
         {
@@ -22,16 +24,18 @@ namespace GraphicsLabSFML
             string[] source = File.ReadAllLines(filePath);
 
             IModelParser parser = new ModelParser();
-            Model model = parser.Parse(source);
+            TriangulatedModel model = parser.ParseTriangulated(source);
 
             _data = new()
             {
                 CameraTarget = new(0, 0, 1),
-                Vertices = new Vector4[model.Vertices.Length],
-                FlatFaces = model.FlatFaces(),
+                Vertices = model.Vertices.Select(v => new CVector4(v)).ToArray(),
+                FlatFaces = model.FlatFaces,
                 VerticesPerFace = 4,
             };
 
+            _partitioner = Partitioner.Create(0, _data.Vertices.Length);
+            
             CustomWindowOptions options = CustomWindowOptions.Default;
             options.Width = width;
             options.Height = height;
@@ -56,7 +60,7 @@ namespace GraphicsLabSFML
             }
         }
 
-        private static void TransformVertices(Vector4[] source, Vector4[] output)
+        private static void TransformVertices(Vector4[] source, CVector4[] output)
         {
             Matrix4x4 scale = Matrix4x4.CreateScale(_data.Scale);
             Matrix4x4 rotateX = Matrix4x4.CreateRotationX(Utils.DegreesToRadians(_data.ModelRotation.X));
@@ -69,12 +73,23 @@ namespace GraphicsLabSFML
 
             Matrix4x4 beforeViewport = Matrix4x4.Transpose(projection * view * model);
 
-            Parallel.For(0, source.Length, (i) =>
+            Parallel.ForEach(_partitioner, (range, state) =>
             {
-                Vector4 tmp = Vector4.Transform(source[i], beforeViewport);
-                tmp /= tmp.W;
-                output[i] = Vector4.Transform(tmp, _viewport);
+                for (int i = range.Item1; i < range.Item2; i++)
+                {
+                    Vector4 tmp = Vector4.Transform(source[i], beforeViewport);
+                    tmp /= tmp.W;
+
+                    bool isVisible = (tmp.Z > -1 && tmp.Z < 1) && (tmp.X > -1 && tmp.X < 1) && (tmp.Y > -1 && tmp.Y < 1);
+                    output[i].IsVisible = isVisible;
+
+                    if (isVisible)
+                    {
+                        output[i].Value = Vector4.Transform(tmp, _viewport);
+                    }
+                }
             });
+            
         }
 
         private static InputHandler CreateInputHandler()
