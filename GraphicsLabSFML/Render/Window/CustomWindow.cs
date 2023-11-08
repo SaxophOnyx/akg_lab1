@@ -83,21 +83,15 @@ namespace GraphicsLabSFML.Render.Window
 
                 if (a.IsVisible && b.IsVisible && c.IsVisible)
                 {
-                    RenderFaceBarocentric(a.Value, b.Value, c.Value);
+                    Color color = i % 2 == 0 ? _options.RenderColor : Color.Blue;
+                    RenderFaceBarocentric(a.Value, b.Value, c.Value, color);
                 }
             }
 
             _window.Draw(_canvas);
         }
 
-        private void RenderFace(Vector4 a, Vector4 b, Vector4 c)
-        {
-            DrawLineDDA(a, b);
-            DrawLineDDA(b, c);
-            DrawLineDDA(c, a);
-        }
-
-        private void RenderFaceBarocentric(Vector4 a, Vector4 b, Vector4 c)
+        private void RenderFaceBarocentric(Vector4 a, Vector4 b, Vector4 c, Color color)
         {
             Vector2i tl; // top left
             Vector2i br; // bottom right
@@ -112,72 +106,43 @@ namespace GraphicsLabSFML.Render.Window
             {
                 for (int j = tl.Y; j < br.Y; ++j)
                 {
-                    if (IsInsideTriangle(a, b, c, i, j))
+                    Vector3 bar = GetBarocentric(a, b, c, i, j);
+                    if (IsInsideTriangleBarocentric(bar))
                     {
-                        float z = GetBarocentricZ(a, b, c, i, j);
-                        float currZ = _zBuffer[i, j];
-
-                        if (z < currZ)
+                        float z = (a.Z * bar.X) + (b.Z * bar.Y) + (c.Z * bar.Z);
+                        if (z < _zBuffer[i, j])
                         {
                             _zBuffer[i, j] = z;
-                            _canvas.SetPixel(i, j, _options.RenderColor);
+                            _canvas.SetPixel(i, j, color);
                         }
                     }
                 }
             }
         }
 
-        private static bool IsInsideTriangle(Vector4 a, Vector4 b, Vector4 c, int x, int y)
+        private static bool IsInsideTriangleBarocentric(Vector3 a)
         {
-            Vector4 p = new(x, y, 0, 0);
+            bool x = (a.X >= 0) && (a.X <= 1);
+            bool y = (a.Y >= 0) && (a.Y <= 1);
+            bool z = (a.Z >= 0) && (a.Z <= 1);
 
-            float d1 = Sign(p, a, b);
-            float d2 = Sign(p, b, c);
-            float d3 = Sign(p, c, a);
-
-            bool hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
-            bool hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
-
-            return !(hasNeg && hasPos);
+            return x && y && z;
         }
 
-        private static float GetBarocentricZ(Vector4 a, Vector4 b, Vector4 c, int x, int y)
+        public Vector3 GetBarocentric(Vector4 a, Vector4 b, Vector4 c, int x, int y)
         {
-            float denominator = (b.Y - c.Y) * (a.X - c.X) + (c.X - b.X) * (a.Y - c.Y);
-            float coordinate1 = ((b.Y - c.Y) * (x - c.X) + (c.X - b.X) * (y - c.Y)) / denominator;
-            float coordinate2 = ((c.Y - a.Y) * (x - c.X) + (a.X - c.X) * (y - c.Y)) / denominator;
+            float denom = (b.Y - c.Y) * (a.X - c.X) + (c.X - b.X) * (a.Y - c.Y);
 
-            return 1 - coordinate1 - coordinate2;
+            float bx = ((b.Y - c.Y) * (x - c.X) + (c.X - b.X) * (y - c.Y)) / denom;
+            float by = ((c.Y - a.Y) * (x - c.X) + (a.X - c.X) * (y - c.Y)) / denom;
+            float bz = 1 - bx - by;
+
+            return new(bx, by, bz);
         }
 
         private static float Sign(Vector4 p1, Vector4 p2, Vector4 p3)
         {
             return (p1.X - p3.X) * (p2.Y - p3.Y) - (p2.X - p3.X) * (p1.Y - p3.Y);
-        }
-
-        private void DrawLineDDA(Vector4 a, Vector4 b)
-        {
-            float dx = b.X - a.X;
-            float dy = b.Y - a.Y;
-
-            int steps = (int)Math.Max(Math.Abs(dx), Math.Abs(dy));
-
-            float floatX = a.X;
-            float floatY = a.Y;
-
-            float xIncrement = dx / steps;
-            float yIncrement = dy / steps;
-
-            for (int i = 0; i < steps; ++i)
-            {
-                int x = (int)Math.Truncate(floatX);
-                int y = (int)Math.Truncate(floatY);
-
-                _canvas.SetPixel(x, y, _options.RenderColor);
-
-                floatX += xIncrement;
-                floatY += yIncrement;
-            }
         }
 
         private void RenderGUI()
