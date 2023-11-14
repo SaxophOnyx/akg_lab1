@@ -63,12 +63,23 @@ namespace GraphicsLabSFML
             {
                 M11 = 1 / (aspect * tag),
                 M22 = 1 / (tag),
-                M33 = (znear - zfar) * rDist,
+                M33 = -1 * (znear + zfar) * rDist,
                 M34 = -2f * zfar * znear * rDist,
                 M43 = -1f
             };
 
             return m;
+        }
+
+        public static Matrix4x4 CreateTranslation(Vector3 vector)
+        {
+            Matrix4x4 result = Matrix4x4.Identity;
+
+            result.M14 = vector.X;
+            result.M24 = vector.Y;
+            result.M34 = vector.Z;
+
+            return result;
         }
     }
 }

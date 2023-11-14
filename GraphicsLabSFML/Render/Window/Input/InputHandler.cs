@@ -7,6 +7,7 @@ namespace GraphicsLabSFML.Render.Window.Input
     public class InputHandler : IInputHandler
     {
         public event Action<Vector3>? OnCameraMoved;
+        public event Action<Vector3>? OnLightSourceWorldPosChanged;
         public event Action<Vector3>? OnModelRotated;
         public event Action<float>? OnModelScaled;
 
@@ -88,6 +89,38 @@ namespace GraphicsLabSFML.Render.Window.Input
                 case Key.Z:
                 {
                     OnCameraMoved?.Invoke(-Vector3.UnitZ);
+                    break;
+                }
+
+                // Lighg direction changed
+                case Key.Numpad7:
+                {
+                    OnLightSourceWorldPosChanged?.Invoke(-Vector3.UnitX);
+                    break;
+                }
+                case Key.Numpad9:
+                {
+                    OnLightSourceWorldPosChanged?.Invoke(Vector3.UnitX);
+                    break;
+                }
+                case Key.Numpad4:
+                {
+                    OnLightSourceWorldPosChanged?.Invoke(-Vector3.UnitY);
+                    break;
+                }
+                case Key.Numpad6:
+                {
+                    OnLightSourceWorldPosChanged?.Invoke(Vector3.UnitY);
+                    break;
+                }
+                case Key.Numpad1:
+                {
+                    OnLightSourceWorldPosChanged?.Invoke(-Vector3.UnitZ);
+                    break;
+                }
+                case Key.Numpad3:
+                {
+                    OnLightSourceWorldPosChanged?.Invoke(Vector3.UnitZ);
                     break;
                 }
             }

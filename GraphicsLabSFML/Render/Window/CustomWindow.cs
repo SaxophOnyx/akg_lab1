@@ -1,5 +1,6 @@
 ﻿using GraphicsLabSFML.Render.Components;
 using GraphicsLabSFML.Render.Window.Input;
+using GraphicsLabSFML.Render.Window.Models;
 using SFML.Graphics;
 using SFML.System;
 using SFML.Window;
@@ -9,7 +10,7 @@ namespace GraphicsLabSFML.Render.Window
 {
     public class CustomWindow
     {
-        private readonly RenderData _data;
+        private readonly LightModelRenderData _data;
         private readonly CustomWindowOptions _options;
         private readonly IInputHandler _inputHandler;
 
@@ -17,6 +18,7 @@ namespace GraphicsLabSFML.Render.Window
         private Vector3Display _modelRotationDisplay;
         private Vector3Display _cameraTargetDisplay;
         private FloatDisplay _modelScaleDisplay;
+        private Vector3Display _lightSourcePositionDisplay;
 
         private readonly RenderWindow _window;
         private readonly Canvas _canvas;
@@ -30,7 +32,7 @@ namespace GraphicsLabSFML.Render.Window
         public bool IsOpen => _window.IsOpen;
 
 
-        public CustomWindow(RenderData viewModel, CustomWindowOptions options, IInputHandler inputHandler)
+        public CustomWindow(LightModelRenderData viewModel, CustomWindowOptions options, IInputHandler inputHandler)
         {
             _data = viewModel;
             _options = options;
@@ -54,7 +56,12 @@ namespace GraphicsLabSFML.Render.Window
         public void Render()
         {
             ClearPrevious();
-            RenderModelCanvas();
+
+            RenderModel(_data.MainModel, _data.LightSource.WorldPosition);
+            RenderTechModel(_data.LightSource);
+
+            _window.Draw(_canvas);
+
             RenderGUI();
 
             _window.Display();
@@ -67,28 +74,67 @@ namespace GraphicsLabSFML.Render.Window
             _zBuffer.Clear();
         }
 
-        private void RenderModelCanvas()
+        private void RenderModel(RenderModel model, Vector3 lightSourceWorldPos)
         {
-            CVector4[] v = _data.Vertices;
-            int[] ff = _data.FlatFaces;
+            CVector4[] vertices = model.Transformed.ViewportVertices;
+            Vector3[] normals = model.Transformed.Normals;
 
-            _canvas.ClearPixels();
+            int[] vIndices = model.Mesh.VertexIndices;
+            int[] nIndices = model.Mesh.NormalIndices;
 
-            for (int i = 0; i < (ff.Length - 1) / 3; ++i)
+            for (int i = 0; i < vIndices.Length / 3; ++i)
             {
                 int j = i * 3;
-                CVector4 a = v[ff[j]];
-                CVector4 b = v[ff[j + 1]];
-                CVector4 c = v[ff[j + 2]];
+
+                int v0Index = vIndices[j];
+                int v1Index = vIndices[j + 1];
+                int v2Index = vIndices[j + 2];
+
+                CVector4 a = vertices[v0Index];
+                CVector4 b = vertices[v1Index];
+                CVector4 c = vertices[v2Index];
 
                 if (a.IsVisible && b.IsVisible && c.IsVisible)
                 {
-                    Color color = i % 2 == 0 ? _options.RenderColor : Color.Blue;
+                    int nIndex = nIndices[j];
+                    Vector3 normal = normals[nIndex];
+
+                    Vector4 poligonPos4 = model.Transformed.WorldVertices[vIndices[j]];
+                    Vector3 polygonPos3 = new(poligonPos4.X, poligonPos4.Y, poligonPos4.Z);
+                    Vector3 lightDir = lightSourceWorldPos - polygonPos3;
+
+                    float cos = Vector3.Dot(normal, Vector3.Normalize(lightDir)) / normal.Length();
+                    cos = Math.Max(cos, 0.05f);
+
+                    Color color = _options.RenderColor.Blend(_options.TechRenderColor, cos / 1.1f).Multiply(cos);
+
                     RenderFaceBarocentric(a.Value, b.Value, c.Value, color);
                 }
             }
+        }
 
-            _window.Draw(_canvas);
+        private void RenderTechModel(RenderModel model)
+        {
+            CVector4[] vertices = model.Transformed.ViewportVertices;
+            int[] vIndices = model.Mesh.VertexIndices;
+
+            for (int i = 0; i < vIndices.Length / 3; ++i)
+            {
+                int j = i * 3;
+
+                int v0Index = vIndices[j];
+                int v1Index = vIndices[j + 1];
+                int v2Index = vIndices[j + 2];
+
+                CVector4 a = vertices[v0Index];
+                CVector4 b = vertices[v1Index];
+                CVector4 c = vertices[v2Index];
+
+                if (a.IsVisible && b.IsVisible && c.IsVisible)
+                {
+                    RenderFaceBarocentric(a.Value, b.Value, c.Value, _options.TechRenderColor);
+                }
+            }
         }
 
         private void RenderFaceBarocentric(Vector4 a, Vector4 b, Vector4 c, Color color)
@@ -129,7 +175,7 @@ namespace GraphicsLabSFML.Render.Window
             return x && y && z;
         }
 
-        public Vector3 GetBarocentric(Vector4 a, Vector4 b, Vector4 c, int x, int y)
+        private static Vector3 GetBarocentric(Vector4 a, Vector4 b, Vector4 c, int x, int y)
         {
             float denom = (b.Y - c.Y) * (a.X - c.X) + (c.X - b.X) * (a.Y - c.Y);
 
@@ -140,11 +186,6 @@ namespace GraphicsLabSFML.Render.Window
             return new(bx, by, bz);
         }
 
-        private static float Sign(Vector4 p1, Vector4 p2, Vector4 p3)
-        {
-            return (p1.X - p3.X) * (p2.Y - p3.Y) - (p2.X - p3.X) * (p1.Y - p3.Y);
-        }
-
         private void RenderGUI()
         {
             _cameraPosDisplay.Value = _data.CameraPos;
@@ -153,11 +194,14 @@ namespace GraphicsLabSFML.Render.Window
             _cameraTargetDisplay.Value = _data.CameraTarget;
             _window.Draw(_cameraTargetDisplay);
 
-            _modelRotationDisplay.Value = _data.ModelRotation;
+            _modelRotationDisplay.Value = _data.MainModel.Rotation;
             _window.Draw(_modelRotationDisplay);
 
-            _modelScaleDisplay.Value = _data.Scale;
+            _modelScaleDisplay.Value = _data.MainModel.Scale;
             _window.Draw(_modelScaleDisplay);
+
+            _lightSourcePositionDisplay.Value = _data.LightSource.WorldPosition;
+            _window.Draw(_lightSourcePositionDisplay);
         }
 
         private void InitGUI()
@@ -196,7 +240,7 @@ namespace GraphicsLabSFML.Render.Window
                 CharacterSize = charSize,
                 TextColor = _options.RenderColor,
                 Label = "Model Rotation",
-                Value = _data.ModelRotation
+                Value = _data.MainModel.Rotation
             };
 
             position.Y += _modelRotationDisplay.Height + indent;
@@ -207,7 +251,18 @@ namespace GraphicsLabSFML.Render.Window
                 CharacterSize = charSize,
                 TextColor = _options.RenderColor,
                 Label = "Model Scale",
-                Value = _data.Scale
+                Value = _data.MainModel.Scale
+            };
+
+            position.Y += _modelScaleDisplay.Height + indent;
+            _lightSourcePositionDisplay = new Vector3Display()
+            {
+                Position = position,
+                Font = font,
+                CharacterSize = charSize,
+                TextColor = _options.RenderColor,
+                Label = "Light Source Pos",
+                Value = _data.LightSource.WorldPosition,
             };
         }
     }

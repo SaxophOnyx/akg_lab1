@@ -1,6 +1,6 @@
 ﻿using System.Numerics;
 
-namespace GraphicsLabSFML.Render
+namespace GraphicsLabSFML.Render.Window.Models
 {
     public struct CVector4
     {

@@ -5,36 +5,9 @@ namespace GraphicsLabSFML.Models
     public class ModelBuilder
     {
         private List<Vector4> _vertices = new();
+        private List<Vector3> _normals = new();
         private List<FaceInfo> _faces = new();
 
-
-        public Model Build()
-        {
-            return new(_vertices, _faces);
-        }
-
-        public TriangulatedModel BuildTriangulated()
-        {
-            int verticesPerFace = _faces[0].VerticesIndices.Length;
-            int triangulatedLength = _faces.Count * 3 * (verticesPerFace - 2);
-            int i = 0;
-
-            int[] triangulatedFlatFaces = new int[triangulatedLength];
-
-            for (int j = 0; j < _faces.Count; ++j)
-            {
-                int[] indices = _faces[j].VerticesIndices;
-
-                for (int k = 1; k < indices.Length - 1; ++k)
-                {
-                    triangulatedFlatFaces[i++] = indices[0];
-                    triangulatedFlatFaces[i++] = indices[k];
-                    triangulatedFlatFaces[i++] = indices[k + 1];
-                }
-            }
-
-            return new TriangulatedModel(_vertices, triangulatedFlatFaces);
-        }
 
         public ModelBuilder AddVertex(Vector4 vertex)
         {
@@ -45,6 +18,18 @@ namespace GraphicsLabSFML.Models
         public ModelBuilder AddVertices(IEnumerable<Vector4> vertices)
         {
             _vertices.AddRange(vertices);
+            return this;
+        }
+
+        public ModelBuilder AddNormal(Vector3 normal)
+        {
+            _normals.Add(normal);
+            return this;
+        }
+
+        public ModelBuilder AddNormals(IEnumerable<Vector3> normals)
+        {
+            _normals.AddRange(normals);
             return this;
         }
 
@@ -63,6 +48,40 @@ namespace GraphicsLabSFML.Models
                 AddFace(face);
 
             return this;
+        }
+
+        public TriangulatedModel BuildTriangulated()
+        {
+            int verticesPerFace = _faces[0].VerticesIndices.Length;
+            int triangulatedLength = _faces.Count * 3 * (verticesPerFace - 2);
+            int i = 0;
+            int n = 0;
+
+            int[] triangVertices = new int[triangulatedLength];
+            int[] triangNormals = new int[triangulatedLength];
+
+            for (int j = 0; j < _faces.Count; ++j)
+            {
+                int[] indices = _faces[j].VerticesIndices;
+
+                for (int k = 1; k < indices.Length - 1; ++k)
+                {
+                    triangVertices[i++] = indices[0];
+                    triangVertices[i++] = indices[k];
+                    triangVertices[i++] = indices[k + 1];
+                }
+
+                int[] normals = _faces[j].NormalsIndices;
+
+                for (int k = 1; k < normals.Length - 1; ++k)
+                {
+                    triangNormals[n++] = normals[0];
+                    triangNormals[n++] = normals[k];
+                    triangNormals[n++] = normals[k + 1];
+                }
+            }
+
+            return new TriangulatedModel(_vertices, _normals, triangVertices, triangNormals);
         }
 
         private bool CanFaceBeAdded(FaceInfo face)
