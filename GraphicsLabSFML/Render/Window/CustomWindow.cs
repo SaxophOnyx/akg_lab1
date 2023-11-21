@@ -86,7 +86,7 @@ namespace GraphicsLabSFML.Render.Window
             {
                 int j = i * 3;
 
-                int v0Index = vIndices[j];
+                int v0Index = vIndices[j + 0];
                 int v1Index = vIndices[j + 1];
                 int v2Index = vIndices[j + 2];
 
@@ -96,19 +96,23 @@ namespace GraphicsLabSFML.Render.Window
 
                 if (a.IsVisible && b.IsVisible && c.IsVisible)
                 {
-                    int nIndex = nIndices[j];
-                    Vector3 normal = normals[nIndex];
+                    Vector3 an = Vector3.Normalize(normals[nIndices[j + 0]]);
+                    Vector3 ab = Vector3.Normalize(normals[nIndices[j + 1]]);
+                    Vector3 ac = Vector3.Normalize(normals[nIndices[j + 2]]);
 
-                    Vector4 poligonPos4 = model.Transformed.WorldVertices[vIndices[j]];
-                    Vector3 polygonPos3 = new(poligonPos4.X, poligonPos4.Y, poligonPos4.Z);
-                    Vector3 lightDir = lightSourceWorldPos - polygonPos3;
+                    Vector4 fcoord4 = model.Transformed.WorldVertices[vIndices[j + 0]];
+                    Vector3 fcoord0 = new(fcoord4.X, fcoord4.Y, fcoord4.Z);
+                    fcoord4 = model.Transformed.WorldVertices[vIndices[j + 1]];
+                    Vector3 fcoord1 = new(fcoord4.X, fcoord4.Y, fcoord4.Z);
+                    fcoord4 = model.Transformed.WorldVertices[vIndices[j + 2]];
+                    Vector3 fcoord2 = new(fcoord4.X, fcoord4.Y, fcoord4.Z);
 
-                    float cos = Vector3.Dot(normal, Vector3.Normalize(lightDir)) / normal.Length();
-                    cos = Math.Max(cos, 0.05f);
+                    //Color color = _options.RenderColor.Blend(_options.TechRenderColor, cos / 1.1f).Multiply(cos);
+                    Vector3 color = new Vector3(1, 1, 1);
 
-                    Color color = _options.RenderColor.Blend(_options.TechRenderColor, cos / 1.1f).Multiply(cos);
-
-                    RenderFaceBarocentric(a.Value, b.Value, c.Value, color);
+                    RenderFaceBarocentric(a.Value, b.Value, c.Value,
+                                          an, ab, ac,
+                                          fcoord0, fcoord1, fcoord2, lightSourceWorldPos, color);
                 }
             }
         }
@@ -132,12 +136,15 @@ namespace GraphicsLabSFML.Render.Window
 
                 if (a.IsVisible && b.IsVisible && c.IsVisible)
                 {
-                    RenderFaceBarocentric(a.Value, b.Value, c.Value, _options.TechRenderColor);
+                    //RenderFaceBarocentric(a.Value, b.Value, c.Value, 
+                    //_options.TechRenderColor);
                 }
             }
         }
 
-        private void RenderFaceBarocentric(Vector4 a, Vector4 b, Vector4 c, Color color)
+        private void RenderFaceBarocentric(Vector4 a, Vector4 b, Vector4 c,
+                                           Vector3 na, Vector3 nb, Vector3 nc,
+                                           Vector3 fc0, Vector3 fc1, Vector3 fc2, Vector3 light_pos, Vector3 color)
         {
             Vector2i tl; // top left
             Vector2i br; // bottom right
@@ -158,8 +165,22 @@ namespace GraphicsLabSFML.Render.Window
                         float z = (a.Z * bar.X) + (b.Z * bar.Y) + (c.Z * bar.Z);
                         if (z < _zBuffer[i, j])
                         {
+                            Vector3 light_color = new Vector3(0.8f, 0.8f, 0.8f);
+                            float amb = 0.1f;
+                            Vector3 ambient = amb * light_color;
+
+                            Vector3 n = na * bar.X + nb * bar.Y + nc * bar.Z;
+                            Vector3 p = fc0 * bar.X + fc1 * bar.Y + fc2 * bar.Z;
+
+                            Vector3 lightDir = Vector3.Normalize(light_pos - p);
+                            float diff = Math.Max(0.0f, Vector3.Dot(n, lightDir));
+                            Vector3 diffuse = diff * light_color;
+
+                            Vector3 fcolor = (ambient + diffuse) * color;
+                            Color res = new Color((byte)(255 * fcolor.X), (byte)(255 * fcolor.Y), (byte)(255 * fcolor.Z), 255);
+
                             _zBuffer[i, j] = z;
-                            _canvas.SetPixel(i, j, color);
+                            _canvas.SetPixel(i, j, res);
                         }
                     }
                 }
@@ -206,7 +227,6 @@ namespace GraphicsLabSFML.Render.Window
 
         private void InitGUI()
         {
-            Font font = new("C:\\Windows\\Fonts\\Roboto-Light.ttf");
             uint charSize = 24;
             float indent = 12;
 
@@ -214,7 +234,6 @@ namespace GraphicsLabSFML.Render.Window
             _cameraPosDisplay = new Vector3Display()
             {
                 Position = position,
-                Font = font,
                 CharacterSize = charSize,
                 TextColor = _options.RenderColor,
                 Label = "Camera Pos",
@@ -225,7 +244,6 @@ namespace GraphicsLabSFML.Render.Window
             _cameraTargetDisplay = new Vector3Display()
             {
                 Position = position,
-                Font = font,
                 CharacterSize = charSize,
                 TextColor = _options.RenderColor,
                 Label = "Camera Target",
@@ -236,7 +254,6 @@ namespace GraphicsLabSFML.Render.Window
             _modelRotationDisplay = new Vector3Display()
             {
                 Position = position,
-                Font = font,
                 CharacterSize = charSize,
                 TextColor = _options.RenderColor,
                 Label = "Model Rotation",
@@ -247,7 +264,6 @@ namespace GraphicsLabSFML.Render.Window
             _modelScaleDisplay = new FloatDisplay()
             {
                 Position = position,
-                Font = font,
                 CharacterSize = charSize,
                 TextColor = _options.RenderColor,
                 Label = "Model Scale",
@@ -258,7 +274,6 @@ namespace GraphicsLabSFML.Render.Window
             _lightSourcePositionDisplay = new Vector3Display()
             {
                 Position = position,
-                Font = font,
                 CharacterSize = charSize,
                 TextColor = _options.RenderColor,
                 Label = "Light Source Pos",
