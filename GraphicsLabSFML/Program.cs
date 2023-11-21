@@ -26,7 +26,7 @@ namespace GraphicsLabSFML
             CustomWindowOptions options = CustomWindowOptions.Default;
             options.Width = width;
             options.Height = height;
-            options.VSync = false;
+            options.VSync = true;
 
             InputHandler inputHandler = CreateInputHandler();
 
@@ -53,6 +53,8 @@ namespace GraphicsLabSFML
         private static void TransformRenderModel(RenderModel renderModel)
         {
             Matrix4x4 modelMatrix = renderModel.CreateModelMatrix();
+            Matrix4x4 it_model4x4;
+            Matrix4x4.Invert(modelMatrix, out it_model4x4);
 
             Matrix4x4 projection = Matrix4x4Factories.CreateProjection(width, height, 0.1f, 100f);
             Matrix4x4 view = Matrix4x4Factories.CreateView(_data.CameraPos, _data.CameraTarget, Vector3.UnitY);
@@ -84,13 +86,13 @@ namespace GraphicsLabSFML
 
             Vector3[] sourceNormals = renderModel.Mesh.Normals;
             Vector3[] worldNormals = renderModel.Transformed.Normals;
-           
+
             OrderablePartitioner<Tuple<int, int>> normalsPartioner = _partioners[renderModel.Mesh.Normals];
             Parallel.ForEach(normalsPartioner, (range, _) =>
             {
                 for (int i = range.Item1; i < range.Item2; ++i)
                 {
-                    worldNormals[i] = Vector3.Transform(sourceNormals[i], modelMatrix);
+                    worldNormals[i] = Vector3.Transform(sourceNormals[i], it_model4x4);
                 }
             });
         }
@@ -99,7 +101,8 @@ namespace GraphicsLabSFML
         {
             InputHandler inputHandler = new();
 
-            inputHandler.OnCameraMoved += (Vector3 v) => {
+            inputHandler.OnCameraMoved += (Vector3 v) =>
+            {
                 _data.CameraTarget += v;
                 _data.CameraPos += v;
             };
@@ -117,6 +120,9 @@ namespace GraphicsLabSFML
         {
             string modelFilePath = "C:\\Users\\German\\Downloads\\cat.obj";
             string lightSourceFilepath = "C:\\Users\\German\\Downloads\\lightSourceCube.obj";
+            //string modelFilePath = "/mnt/sata0/Workshop/cat.obj";
+            //string modelFilePath = "/mnt/sata0/Workshop/cat.obj";
+            //string lightSourceFilepath = "/mnt/sata0/Workshop/lightSourceCube.obj";
 
             string[] modelLines = File.ReadAllLines(modelFilePath);
             string[] lightSourceLines = File.ReadAllLines(lightSourceFilepath);
@@ -164,7 +170,7 @@ namespace GraphicsLabSFML
                         ViewportVertices = light.Vertices.Select(v => new CVector4(v)).ToArray(),
                         Normals = light.Normals.Select(n => n).ToArray(),
                     },
-                    WorldPosition = new(1, 0, 0),
+                    WorldPosition = new(0, 10, 0),
                     Scale = 0.5f,
                 }
             };
