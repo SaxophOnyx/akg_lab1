@@ -165,7 +165,7 @@ namespace GraphicsLabSFML.Render.Window
                         float z = (a.Z * bar.X) + (b.Z * bar.Y) + (c.Z * bar.Z);
                         if (z < _zBuffer[i, j])
                         {
-                            Vector3 light_color = new Vector3(0.8f, 0.8f, 0.8f);
+                            Vector3 light_color = new Vector3(0.6f, 0.6f, 0.6f);
                             float amb = 0.1f;
                             Vector3 ambient = amb * light_color;
 
@@ -176,9 +176,14 @@ namespace GraphicsLabSFML.Render.Window
                             float diff = Math.Max(0.0f, Vector3.Dot(n, lightDir));
                             Vector3 diffuse = diff * light_color;
 
-                            Vector3 fcolor = (ambient + diffuse) * color;
-                            Color res = new Color((byte)(255 * fcolor.X), (byte)(255 * fcolor.Y), (byte)(255 * fcolor.Z), 255);
+                            float specularStrange = 0.5f;
+                            Vector3 viewDir = Vector3.Normalize(_data.CameraPos - p);
+                            Vector3 reflectDir = Vector3.Reflect(-lightDir, n);
+                            float spec = (float)Math.Pow(Math.Max(0.0f, Vector3.Dot(viewDir, reflectDir)), 32.0f);
+                            Vector3 specular = specularStrange * spec * light_color;
 
+                            Vector3 fcolor = (ambient + diffuse + specular) * color;
+                            Color res = new Color((byte)(255 * fcolor.X), (byte)(255 * fcolor.Y), (byte)(255 * fcolor.Z), 255);
                             _zBuffer[i, j] = z;
                             _canvas.SetPixel(i, j, res);
                         }
