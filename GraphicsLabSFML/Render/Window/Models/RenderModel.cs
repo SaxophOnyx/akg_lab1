@@ -1,4 +1,5 @@
 ﻿using System.Numerics;
+using GraphicsLabSFML.Models;
 
 namespace GraphicsLabSFML.Render.Window.Models
 {
@@ -7,6 +8,12 @@ namespace GraphicsLabSFML.Render.Window.Models
         public Mesh Mesh { get; set; } = new();
 
         public Transformed Transformed { get; set; } = new();
+
+        public Map<Vector3> DiffuseMap { get; set; } = Map<Vector3>.Empty();
+        
+        public Map<Vector3> NormalMap { get; set; } = Map<Vector3>.Empty();
+
+        public Map<Vector3> SpecularMap { get; set; } = Map<Vector3>.Empty();
 
         public float Scale { get; set; } = 1;
 
@@ -24,6 +31,15 @@ namespace GraphicsLabSFML.Render.Window.Models
             Matrix4x4 translation = Matrix4x4Factories.CreateTranslation(WorldPosition);
 
             return translation * rotateZ * rotateY * rotateX * scale;
+        }
+
+        public Matrix4x4 CreateRotation()
+        {
+            Matrix4x4 rotateX = Matrix4x4.CreateRotationX(Utils.DegreesToRadians(Rotation.X));
+            Matrix4x4 rotateY = Matrix4x4.CreateRotationY(Utils.DegreesToRadians(Rotation.Y));
+            Matrix4x4 rotateZ = Matrix4x4.CreateRotationZ(Utils.DegreesToRadians(Rotation.Z));
+
+            return rotateZ * rotateY * rotateX;
         }
     }
 }

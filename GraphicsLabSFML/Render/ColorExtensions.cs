@@ -1,4 +1,5 @@
 ﻿using SFML.Graphics;
+using System.Numerics;
 
 namespace GraphicsLabSFML.Render
 {

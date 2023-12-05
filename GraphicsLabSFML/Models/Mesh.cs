@@ -1,6 +1,6 @@
 ﻿using System.Numerics;
 
-namespace GraphicsLabSFML.Render.Window.Models
+namespace GraphicsLabSFML.Models
 {
     public class Mesh
     {
@@ -11,5 +11,9 @@ namespace GraphicsLabSFML.Render.Window.Models
         public Vector3[] Normals { get; set; } = Array.Empty<Vector3>();
 
         public int[] NormalIndices { get; set; } = Array.Empty<int>();
+
+        public Vector3[] Textures { get; set; } = Array.Empty<Vector3>();
+
+        public int[] TextureIndices { get; set; } = Array.Empty<int>();
     }
 }

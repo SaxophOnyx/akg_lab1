@@ -23,6 +23,7 @@ namespace GraphicsLabSFML.Render.Window
         private readonly RenderWindow _window;
         private readonly Canvas _canvas;
         private readonly ZBuffer _zBuffer;
+        private readonly SpinLock[,] _locks;
 
 
         public uint Width => _window.Size.X;
@@ -40,6 +41,7 @@ namespace GraphicsLabSFML.Render.Window
 
             _canvas = new(_options.Width, _options.Height);
             _zBuffer = new(_options.Width, _options.Height);
+            _locks = new SpinLock[_options.Width, _options.Height];
 
             InitGUI();
 
@@ -59,6 +61,7 @@ namespace GraphicsLabSFML.Render.Window
 
             RenderModel(_data.MainModel, _data.LightSource.WorldPosition);
             RenderTechModel(_data.LightSource);
+            // RenderModel(_data.LightSource, _data.MainModel.WorldPosition);
 
             _window.Draw(_canvas);
 
@@ -77,40 +80,126 @@ namespace GraphicsLabSFML.Render.Window
         private void RenderModel(RenderModel model, Vector3 lightSourceWorldPos)
         {
             CVector4[] vertices = model.Transformed.ViewportVertices;
-            Vector3[] normals = model.Transformed.Normals;
 
             int[] vIndices = model.Mesh.VertexIndices;
             int[] nIndices = model.Mesh.NormalIndices;
+            int[] tIndices = model.Mesh.TextureIndices;
 
-            for (int i = 0; i < vIndices.Length / 3; ++i)
+            Parallel.For(0, vIndices.Length / 3, (i) =>
             {
                 int j = i * 3;
 
-                int v0Index = vIndices[j];
+                int v0Index = vIndices[j + 0];
                 int v1Index = vIndices[j + 1];
                 int v2Index = vIndices[j + 2];
 
-                CVector4 a = vertices[v0Index];
-                CVector4 b = vertices[v1Index];
-                CVector4 c = vertices[v2Index];
+                CVector4 ca = vertices[v0Index];
+                CVector4 cb = vertices[v1Index];
+                CVector4 cc = vertices[v2Index];
 
-                if (a.IsVisible && b.IsVisible && c.IsVisible)
+                if (ca.IsVisible && cb.IsVisible && cc.IsVisible)
                 {
-                    int nIndex = nIndices[j];
-                    Vector3 normal = normals[nIndex];
+                    Matrix4x4 modelMatrix = model.CreateModelMatrix();
+                    Matrix4x4 inverted;
+                    Matrix4x4.Invert(modelMatrix, out inverted);
 
-                    Vector4 poligonPos4 = model.Transformed.WorldVertices[vIndices[j]];
-                    Vector3 polygonPos3 = new(poligonPos4.X, poligonPos4.Y, poligonPos4.Z);
-                    Vector3 lightDir = lightSourceWorldPos - polygonPos3;
+                    Vector4 va = ca.Value;
+                    Vector4 vb = cb.Value;
+                    Vector4 vc = cc.Value;
 
-                    float cos = Vector3.Dot(normal, Vector3.Normalize(lightDir)) / normal.Length();
-                    cos = Math.Max(cos, 0.05f);
+                    Vector3[] textures = model.Transformed.Textures;
+                    int t0Index = tIndices[j + 0];
+                    int t1Index = tIndices[j + 1];
+                    int t2Index = tIndices[j + 2];
+                    Vector3 ta = textures[t0Index];
+                    Vector3 tb = textures[t1Index];
+                    Vector3 tc = textures[t2Index];
 
-                    Color color = _options.RenderColor.Blend(_options.TechRenderColor, cos / 1.1f).Multiply(cos);
+                    Vector3[] normals = model.Transformed.Normals;
+                    int n0Index = nIndices[j + 0];
+                    int n1Index = nIndices[j + 1];
+                    int n2Index = nIndices[j + 2];
+                    Vector3 na = normals[n0Index];
+                    Vector3 nb = normals[n1Index];
+                    Vector3 nc = normals[n2Index];
 
-                    RenderFaceBarocentric(a.Value, b.Value, c.Value, color);
+                    Vector4[] worldVertices = model.Transformed.WorldVertices;
+                    Vector3 wva = worldVertices[v0Index].ToVector3();
+                    Vector3 wvb = worldVertices[v1Index].ToVector3();
+                    Vector3 wvc = worldVertices[v2Index].ToVector3();
+
+                    Vector2i tl; // top left
+                    Vector2i br; // bottom right
+
+                    tl.X = (int)Math.Ceiling(Utils.Min(va.X, vb.X, vc.X));
+                    tl.Y = (int)Math.Ceiling(Utils.Min(va.Y, vb.Y, vc.Y));
+
+                    br.X = (int)Math.Ceiling(Utils.Max(va.X, vb.X, vc.X));
+                    br.Y = (int)Math.Ceiling(Utils.Max(va.Y, vb.Y, vc.Y));
+
+                    for (int x = tl.X; x < br.X; ++x)
+                    {
+                        for (int y = tl.Y; y < br.Y; ++y)
+                        {
+                            Vector3 bar = GetBarocentric(va, vb, vc, x, y);
+                            if (IsInsideTriangleBarocentric(bar))
+                            {
+                                float z = (va.Z * bar.X) + (vb.Z * bar.Y) + (vc.Z * bar.Z);
+                                if (z < _zBuffer[x, y])
+                                {
+                                    int textureWidth = model.DiffuseMap.Width;
+                                    int textureHeight = model.DiffuseMap.Height;
+
+                                    Vector3 textureCoords = ta * bar.X + tb * bar.Y + tc * bar.Z;
+
+                                    int textureX = (int)Math.Ceiling(textureCoords.X * textureWidth);
+                                    int textureY = (int)Math.Ceiling(textureCoords.Y * textureHeight);
+
+                                    Vector3 diffuseColor = model.DiffuseMap[textureX, textureHeight - textureY];
+
+                                    float ambientMultiplier = 0.1f;
+                                    Vector3 ambientLight = ambientMultiplier * diffuseColor;
+
+                                    //
+                                    Vector3 n = model.NormalMap[textureX, textureHeight - textureY];
+                                    n = Vector3.Normalize(Vector3.Transform(n, inverted));
+                                    //
+
+                                    Vector3 p = wva * bar.X + wvb * bar.Y + wvc * bar.Z;
+
+                                    Vector3 lightDir = Vector3.Normalize(lightSourceWorldPos - p);
+                                    float diffuseMultiplier = Math.Max(0.0f, Vector3.Dot(n, lightDir));
+
+                                    Vector3 diffuseLight = diffuseMultiplier * diffuseColor;
+
+                                    Vector3 specularStrength = model.SpecularMap[textureX, textureHeight - textureY];
+                                    Vector3 viewDir = Vector3.Normalize(_data.CameraPos - p);
+                                    Vector3 reflectDir = Vector3.Reflect(-lightDir, n);
+                                    float spec = (float)Math.Pow(Math.Max(0.0f, Vector3.Dot(viewDir, reflectDir)), 32);
+                                    Vector3 specular = specularStrength * spec * _data.LightColor;
+
+                                     Vector3 fcolor = ambientLight + diffuseLight + specular;
+                                     Color res = fcolor.ToClampedColor();
+
+                                    bool lockAcquired = false;
+                                    _locks[x, y].Enter(ref lockAcquired);
+
+                                    if (z < _zBuffer[x, y])
+                                    {
+                                        _zBuffer[x, y] = z;
+                                        _canvas.SetPixel(x, y, res);
+                                    }
+
+                                    if (lockAcquired)
+                                    {
+                                        _locks[x, y].Exit();
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-            }
+            });
         }
 
         private void RenderTechModel(RenderModel model)
@@ -132,12 +221,12 @@ namespace GraphicsLabSFML.Render.Window
 
                 if (a.IsVisible && b.IsVisible && c.IsVisible)
                 {
-                    RenderFaceBarocentric(a.Value, b.Value, c.Value, _options.TechRenderColor);
+                    RenderFaceBarocentricSimple(a.Value, b.Value, c.Value, _options.TechRenderColor);
                 }
             }
         }
 
-        private void RenderFaceBarocentric(Vector4 a, Vector4 b, Vector4 c, Color color)
+        private void RenderFaceBarocentricSimple(Vector4 a, Vector4 b, Vector4 c, Color color)
         {
             Vector2i tl; // top left
             Vector2i br; // bottom right
@@ -158,8 +247,19 @@ namespace GraphicsLabSFML.Render.Window
                         float z = (a.Z * bar.X) + (b.Z * bar.Y) + (c.Z * bar.Z);
                         if (z < _zBuffer[i, j])
                         {
-                            _zBuffer[i, j] = z;
-                            _canvas.SetPixel(i, j, color);
+                            bool lockAcquired = false;
+                            _locks[i, j].Enter(ref lockAcquired);
+
+                            if (z < _zBuffer[i, j])
+                            {
+                                _zBuffer[i, j] = z;
+                                _canvas.SetPixel(i, j, color);
+                            }
+
+                            if (lockAcquired)
+                            {
+                                _locks[i, j].Exit();
+                            }
                         }
                     }
                 }
@@ -265,5 +365,6 @@ namespace GraphicsLabSFML.Render.Window
                 Value = _data.LightSource.WorldPosition,
             };
         }
+
     }
 }
