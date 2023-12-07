@@ -6,10 +6,15 @@ namespace GraphicsLabSFML.Parsing
 {
     public class ModelParser : IModelParser
     {
-        public Model Parse(IEnumerable<string> source)
+        public TriangulatedModel ParseTriangulated(IEnumerable<string> source)
         {
             ModelBuilder builder = new();
+            ParseToBuilder(source, builder);
+            return builder.BuildTriangulated();
+        }
 
+        private static void ParseToBuilder(IEnumerable<string> source, ModelBuilder builder)
+        {
             foreach (var rawLine in source)
             {
                 string line = rawLine.Trim();
@@ -52,33 +57,36 @@ namespace GraphicsLabSFML.Parsing
                             float y = float.Parse(items[2], CultureInfo.InvariantCulture);
                             float z = float.Parse(items[3], CultureInfo.InvariantCulture);
 
-                            // TODO(SaxophOnyx): Add mormal vertex to builder
+                            builder.AddNormal(new Vector3(x, y, z));
                             break;
                         }
 
                         case "f":
                         {
-                            List<int> indices = new();
+                            List<int> vertices = new();
+                            List<int> normals = new();
 
                             foreach (var item in items.Skip(1))
                             {
                                 var verticesSet = item.Split('/');
+
                                 var vertexIndex = int.Parse(verticesSet[0]) - 1;
-                                indices.Add(vertexIndex);
+                                vertices.Add(vertexIndex);
+
+                                var normalIndex = int.Parse(verticesSet[2]) - 1;
+                                normals.Add(normalIndex);
                             }
 
-                            builder.AddFace(new(indices));
+                            builder.AddFace(new FaceInfo(vertices, normals));
 
                             break;
                         }
 
                         default:
-                        continue;
+                            continue;
                     }
                 }
             }
-
-            return builder.Build();
         }
     }
 }

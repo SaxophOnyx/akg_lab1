@@ -4,9 +4,13 @@
     {
         public int[] VerticesIndices { get; }
 
-        public FaceInfo(IEnumerable<int> verticesIndices)
+        public int[] NormalsIndices { get; }
+
+
+        public FaceInfo(IEnumerable<int> verticesIndices, IEnumerable<int> normalsIndices)
         {
             VerticesIndices = verticesIndices.ToArray();
+            NormalsIndices = normalsIndices.ToArray();
         }
     }
 }
